@@ -1,0 +1,208 @@
+name: CI/CD Node Todos JSON
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "*" ]
+  pull_request:
+    branches: [ "main" ]
+
+# Variáveis globais (edite para seu namespace)
+env:
+  DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+  IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+  HEROKU_APP: ${{ vars.HEROKU_APP }}
+  SONAR_ORG: ${{ vars.SONAR_ORG }}
+  SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+
+jobs:
+  test:
+    name: Test & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      # - name: Run unit tests (with coverage threshold)
+      #   # seu npm test já usa --experimental-vm-modules e coverage v8 com threshold 100%
+      #   run: npm test
+
+      - name: Run unit tests (with coverage threshold)
+        env:
+          NODE_ENV: test
+          NEW_RELIC_ENABLED: "false"   # <- garante que o agente não roda      
+        run: npm test -- --coverage --coverageReporters=lcov --coverageReporters=text-summary
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }} # para PR decoration
+        with:
+          args: >
+            -Dsonar.organization=${{ env.SONAR_ORG }}
+            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,coverage/**,__tests__/**,Dockerfile,**/*.yml,**/*.yaml,public/**,newrelic.js
+            -Dsonar.tests=__tests__
+            -Dsonar.test.inclusions=__tests__/**/*.js
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.coverage.exclusions=**/*.test.js,__tests__/**,public/**,jest.config.*
+
+      - name: Aguardar e verificar Quality Gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ env.SONAR_PROJECT_KEY }}
+        run: |
+          echo "Aguardando análise ser processada..."
+          sleep 20
+          STATUS=""
+          for i in {1..15}; do
+            STATUS=$(curl -s -u "$SONAR_TOKEN:" \
+              "https://sonarcloud.io/api/qualitygates/project_status?projectKey=$SONAR_PROJECT_KEY" \
+              | jq -r '.projectStatus.status')
+            echo "Status atual: $STATUS"
+            if [[ "$STATUS" == "OK" ]]; then
+              echo "✅ Quality Gate aprovado"
+              exit 0
+            elif [[ "$STATUS" == "ERROR" ]]; then
+              echo "❌ Quality Gate reprovado"
+              exit 1
+            fi
+            echo "⏳ Ainda em análise... aguardando 10s"
+            sleep 10
+          done
+          echo "⚠️ Timeout esperando resultado do SonarCloud"
+          exit 1
+
+  build_and_push:
+    name: Build & Push Docker
+    needs: [test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' # só no main
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker login (Docker Hub)
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version from package.json
+        id: meta
+        run: |
+          VERSION=$(jq -r .version package.json)
+          SHA7=${GITHUB_SHA::7}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "sha7=$SHA7" >> $GITHUB_OUTPUT
+
+      - name: Build & Push (linux/amd64)
+        run: |
+          IMAGE="docker.io/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          SHA7="${{ steps.meta.outputs.sha7 }}"
+
+          docker buildx build \
+            --platform linux/amd64 \
+            --tag "${IMAGE}:latest" \
+            --tag "${IMAGE}:v${VERSION}" \
+            --tag "${IMAGE}:sha-${SHA7}" \
+            --push .
+
+      - name: Output image refs
+        run: |
+          echo "Pushed:"
+          echo " - docker.io/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}:latest"
+          echo " - docker.io/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}:v${{ steps.meta.outputs.version }}"
+          echo " - docker.io/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}:sha-${{ steps.meta.outputs.sha7 }}"
+
+  deploy_heroku:
+    name: Deploy to Heroku (Container)
+    needs: [build_and_push]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' # só no main
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Heroku CLI
+        run: curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
+
+      - name: Ensure Heroku container stack
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: heroku stack:set container --app ${{ env.HEROKU_APP }}
+
+      # 🔐 Set/atualiza Config Vars de New Relic no app Heroku
+      - name: Configure New Relic (Heroku Config Vars)
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+        run: |
+          heroku config:set \
+            NEW_RELIC_LICENSE_KEY="${NEW_RELIC_LICENSE_KEY}" \
+            NEW_RELIC_APP_NAME="${{ env.HEROKU_APP }}" \
+            NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
+            NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=true \
+            NEW_RELIC_LOG_LEVEL=info \
+            --app ${{ env.HEROKU_APP }}
+          # Se sua conta NR for EU, descomente:
+          # heroku config:set NEW_RELIC_HOST=eu01.nr-data.net --app ${{ env.HEROKU_APP }}      
+
+      - name: Docker login (Heroku Registry)
+        run: |
+          echo "${{ secrets.HEROKU_API_KEY }}" | docker login --username=_ --password-stdin registry.heroku.com
+
+      - name: Extract version from package.json
+        id: meta
+        run: |
+          VERSION=$(jq -r .version package.json)
+          SHA7=${GITHUB_SHA::7}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "sha7=$SHA7" >> $GITHUB_OUTPUT
+
+      - name: Pull image from Docker Hub
+        run: |
+          IMAGE="docker.io/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}"
+          # Prefira tag imutável para reproducibilidade (sha-<7>)
+          docker pull "${IMAGE}:sha-${{ steps.meta.outputs.sha7 }}"
+
+      - name: Retag to Heroku registry
+        run: |
+          IMAGE="docker.io/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}"
+          HEROKU_IMAGE="registry.heroku.com/${{ env.HEROKU_APP }}/web"
+          docker tag "${IMAGE}:sha-${{ steps.meta.outputs.sha7 }}" "${HEROKU_IMAGE}"
+
+      - name: Push to Heroku registry
+        run: |
+          docker push "registry.heroku.com/${{ env.HEROKU_APP }}/web"
+
+      - name: Release on Heroku
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          heroku container:release web --app ${{ env.HEROKU_APP }}

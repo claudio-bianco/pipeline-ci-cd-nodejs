@@ -150,33 +150,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Heroku CLI
-        run: curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
+      # - name: Install Heroku CLI
+      #   run: curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
 
-      - name: Ensure Heroku container stack
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-        run: heroku stack:set container --app ${{ env.HEROKU_APP }}
+      # - name: Ensure Heroku container stack
+      #   env:
+      #     HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+      #   run: heroku stack:set container --app ${{ env.HEROKU_APP }}
 
-      # 🔐 Set/atualiza Config Vars de New Relic no app Heroku
-      - name: Configure New Relic (Heroku Config Vars)
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
-        run: |
-          heroku config:set \
-            NEW_RELIC_LICENSE_KEY="${NEW_RELIC_LICENSE_KEY}" \
-            NEW_RELIC_APP_NAME="${{ env.HEROKU_APP }}" \
-            NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
-            NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=true \
-            NEW_RELIC_LOG_LEVEL=info \
-            --app ${{ env.HEROKU_APP }}
-          # Se sua conta NR for EU, descomente:
-          # heroku config:set NEW_RELIC_HOST=eu01.nr-data.net --app ${{ env.HEROKU_APP }}      
+      # # 🔐 Set/atualiza Config Vars de New Relic no app Heroku
+      # - name: Configure New Relic (Heroku Config Vars)
+      #   env:
+      #     HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+      #     NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+      #   run: |
+      #     heroku config:set \
+      #       NEW_RELIC_LICENSE_KEY="${NEW_RELIC_LICENSE_KEY}" \
+      #       NEW_RELIC_APP_NAME="${{ env.HEROKU_APP }}" \
+      #       NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
+      #       NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=true \
+      #       NEW_RELIC_LOG_LEVEL=info \
+      #       --app ${{ env.HEROKU_APP }}
+      #     # Se sua conta NR for EU, descomente:
+      #     # heroku config:set NEW_RELIC_HOST=eu01.nr-data.net --app ${{ env.HEROKU_APP }}      
 
-      - name: Docker login (Heroku Registry)
-        run: |
-          echo "${{ secrets.HEROKU_API_KEY }}" | docker login --username=_ --password-stdin registry.heroku.com
+      # - name: Docker login (Heroku Registry)
+      #   run: |
+      #     echo "${{ secrets.HEROKU_API_KEY }}" | docker login --username=_ --password-stdin registry.heroku.com
 
       - name: Extract version from package.json
         id: meta
@@ -192,18 +192,18 @@ jobs:
           # Prefira tag imutável para reproducibilidade (sha-<7>)
           docker pull "${IMAGE}:sha-${{ steps.meta.outputs.sha7 }}"
 
-      - name: Retag to Heroku registry
-        run: |
-          IMAGE="docker.io/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}"
-          HEROKU_IMAGE="registry.heroku.com/${{ env.HEROKU_APP }}/web"
-          docker tag "${IMAGE}:sha-${{ steps.meta.outputs.sha7 }}" "${HEROKU_IMAGE}"
+      # - name: Retag to Heroku registry
+      #   run: |
+      #     IMAGE="docker.io/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_NAME }}"
+      #     HEROKU_IMAGE="registry.heroku.com/${{ env.HEROKU_APP }}/web"
+      #     docker tag "${IMAGE}:sha-${{ steps.meta.outputs.sha7 }}" "${HEROKU_IMAGE}"
 
-      - name: Push to Heroku registry
-        run: |
-          docker push "registry.heroku.com/${{ env.HEROKU_APP }}/web"
+      # - name: Push to Heroku registry
+      #   run: |
+      #     docker push "registry.heroku.com/${{ env.HEROKU_APP }}/web"
 
-      - name: Release on Heroku
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-        run: |
-          heroku container:release web --app ${{ env.HEROKU_APP }}
+      # - name: Release on Heroku
+      #   env:
+      #     HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+      #   run: |
+      #     heroku container:release web --app ${{ env.HEROKU_APP }}

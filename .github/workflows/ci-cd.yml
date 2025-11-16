@@ -61,7 +61,7 @@ jobs:
             -Dsonar.projectName=${{ vars.SONAR_PROJECT_NAME }}
             -Dsonar.sources=.
             -Dsonar.exclusions=**/node_modules/**,coverage/**,__tests__/**,Dockerfile,**/*.yml,**/*.yaml,public/**,newrelic.js
-            -Dsonar.tests=__tests__
+            -Dsonar.tests=tests
             -Dsonar.test.inclusions=__tests__/**/*.js
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.coverage.exclusions=**/*.test.js,__tests__/**,public/**,jest.config.*

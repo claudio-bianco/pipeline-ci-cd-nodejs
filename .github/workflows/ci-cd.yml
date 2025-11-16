@@ -58,6 +58,7 @@ jobs:
           args: >
             -Dsonar.organization=${{ env.SONAR_ORG }}
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
+            -Dsonar.projectName=${{ env.SONAR_PROJECT_NAME }}
             -Dsonar.sources=.
             -Dsonar.exclusions=**/node_modules/**,coverage/**,__tests__/**,Dockerfile,**/*.yml,**/*.yaml,public/**,newrelic.js
             -Dsonar.tests=__tests__

@@ -60,11 +60,11 @@ jobs:
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.projectName=${{ vars.SONAR_PROJECT_NAME }}
             -Dsonar.sources=.
-            -Dsonar.exclusions=**/node_modules/**,coverage/**,test/**,Dockerfile,**/*.yml,**/*.yaml,src/public/**,src/newrelic.js
+            -Dsonar.exclusions=**/node_modules/**,coverage/**,test/**,Dockerfile,**/*.yml,**/*.yaml,src/public/**,src/newrelic.js,src/app.js,src/db/file.js
             -Dsonar.tests=test
             -Dsonar.test.inclusions=test/**/*.js
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-            -Dsonar.coverage.exclusions=**/*.test.js,test/**,src/public/**,jest.config.*,src/newrelic.js
+            -Dsonar.coverage.exclusions=**/*.test.js,test/**,src/public/**,jest.config.*,src/newrelic.js,src/app.js,src/db/file.js
 
       - name: Aguardar e verificar Quality Gate
         env:

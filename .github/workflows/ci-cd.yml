@@ -207,3 +207,12 @@ jobs:
       #     HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
       #   run: |
       #     heroku container:release web --app ${{ env.HEROKU_APP }}
+
+      # ---------- DEPLOY NO RENDER (somente push na main e tudo OK) ----------
+      - name: Disparar deploy no Render
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          echo "Chamando Deploy Hook do Render..."
+          curl -X POST "$RENDER_DEPLOY_HOOK"
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}

@@ -43,7 +43,7 @@ jobs:
         run: npm test -- --coverage --coverageReporters=lcov --coverageReporters=text-summary
 
       - name: Lint
-        run: npm lint
+        run: npm run lint
 
       - name: Upload coverage artifact
         if: always()

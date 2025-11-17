@@ -5,7 +5,7 @@
  * Documentação das envs: https://docs.newrelic.com/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/
  */
 exports.config = {
-  app_name: [process.env.NEW_RELIC_APP_NAME || 'app-nodejs-todos'],
+  app_name: [process.env.NEW_RELIC_APP_NAME || 'app-nodejs-todos-api'],
   license_key: process.env.NEW_RELIC_LICENSE_KEY || '',
   distributed_tracing: { enabled: process.env.NEW_RELIC_DISTRIBUTED_TRACING_ENABLED === 'true' || true },
 

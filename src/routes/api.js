@@ -1,5 +1,6 @@
-// src/routes/api.js
 import express from 'express';
+
+import { instrumentRequests } from './instrumentation.js';
 
 // Coerção booleana previsível
 const toBool = (v) => v === true || v === 'true' || v === 1 || v === '1';
@@ -18,6 +19,9 @@ export function createApi({ db, now = defaultNow } = {}) {
   }
 
   const api = express.Router();
+
+  // Middleware de instrumentação New Relic
+  api.use(instrumentRequests);
 
   api.get('/todos', (_req, res) => {
     const list = db.state.todos

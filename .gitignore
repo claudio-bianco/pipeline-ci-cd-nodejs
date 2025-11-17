@@ -2,3 +2,4 @@ node_modules
 coverage
 db.json
 .env
+readme-new-relic.md

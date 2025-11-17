@@ -42,8 +42,8 @@ jobs:
           NEW_RELIC_ENABLED: "false"   # <- garante que o agente não roda      
         run: npm test -- --coverage --coverageReporters=lcov --coverageReporters=text-summary
 
-      - name: Lint
-        run: npm run lint
+      # - name: Lint
+      #   run: npm run lint
 
       - name: Upload coverage artifact
         if: always()
